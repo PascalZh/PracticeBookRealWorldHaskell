@@ -102,7 +102,39 @@ pretty width x = best 0 [x]
 fits :: Int -> String -> Bool
 w `fits` _ | w < 0 = False
 w `fits` "" = True
-w `fits` ('\n':_) = True
-w `fits` (c:cs) = (w - 1) `fits` cs
+w `fits` ('\n' : _) = True
+w `fits` (c : cs) = (w - 1) `fits` cs
 
+nest :: Int -> Doc -> String
+nest width x = best 0 0 [] [x]
+  where
+    best col level open (d : ds) =
+      case d of
+        Empty -> best_ col ds
+        Char '{' -> open_bracket '{'
+        Char '}' -> close_bracket '}'
+        Char '[' -> open_bracket '['
+        Char ']' -> close_bracket ']'
+        Char c -> c : best_ (col + 1) ds
+        Text s -> s ++ best_ (col + length s) ds
+        Line -> '\n' : replicate (4 * level) ' ' ++ best_ (4 * level) ds
+        a `Concat` b -> best_ col (a : b : ds)
+        a `Union` b -> nicest col (best_ col (a : ds)) (best_ col (b : ds))
+      where
+        best_ col = best col level open
+        open_bracket b =
+          nicest
+            col
+            (b : best (col + 1) level (False : open) ds)
+            (b : "\n" ++ replicate (4 * (level + 1)) ' ' ++ best (4 * (level + 1)) (level + 1) (True : open) ds)
+        close_bracket b =
+          if head open
+            then '\n' : replicate (4 * (level - 1)) ' ' ++ b : best (4 * (level - 1) + 1) (level - 1) (tail open) ds
+            else b : best (col + 1) level (tail open) ds
+    best _ _ _ _ = ""
 
+    nicest col a b
+      | (width - least) `fits` a = a
+      | otherwise = b
+      where
+        least = min width col
